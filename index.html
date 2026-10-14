@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>留言板</title>
+<style>
+:root{--bg:#f3f1f8;--card:#fff;--ink:#241f35;--muted:#776f8c;--line:#ddd8ea;--accent:#6a3fd1;--accent-ink:#fff}
+@media (prefers-color-scheme: dark){:root{--bg:#17131f;--card:#211b2e;--ink:#eee9fa;--muted:#9a90b3;--line:#35294d;--accent:#a98bff;--accent-ink:#17131f}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;line-height:1.7;padding:48px 16px;display:flex;justify-content:center}
+main{width:100%;max-width:580px}
+h1{margin:0 0 4px;font-size:2rem}
+.sub{color:var(--muted);margin:0 0 20px}
+.cta{display:inline-block;background:var(--accent);color:var(--accent-ink);text-decoration:none;font-weight:600;padding:10px 20px;border-radius:8px;margin-bottom:28px}
+a:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.msg{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+.who{display:flex;align-items:baseline;gap:10px;margin-bottom:4px;flex-wrap:wrap}
+.who b{font-weight:600}
+.who time{color:var(--muted);font-size:.85rem;margin-left:auto}
+.social{display:inline-block;color:var(--accent);font-size:.9rem;margin-bottom:6px;word-break:break-all}
+.msg p{margin:0;white-space:pre-wrap;word-break:break-word}
+.imgs{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}
+.imgs.one{grid-template-columns:1fr}
+.imgs img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;background:var(--line);display:block}
+.note{color:var(--muted);text-align:center;padding:24px 0}
+</style>
+</head>
+<body>
+<main>
+  <h1>留言板</h1>
+  <p class="sub">留言可附最多 4 張圖片與社群連結，經管理員核准後才會顯示。</p>
+  <a class="cta" id="new" target="_blank" rel="noopener">我要留言</a>
+  <div id="list" aria-live="polite"><p class="note">載入中…</p></div>
+</main>
+<script>
+// ▼ 部署後請填入這兩個網址
+const FORM_URL = "https://forms.gle/你的表單";
+const API_URL  = "https://script.google.com/macros/s/你的部署ID/exec";
+// ▲
+const SOCIAL_HOSTS = ["instagram.com","facebook.com","threads.net","threads.com","x.com","twitter.com","youtube.com","linkedin.com","github.com","tiktok.com","line.me","medium.com","behance.net","pinterest.com"];
+
+document.getElementById("new").href = FORM_URL;
+const list = document.getElementById("list");
+const msg = t => { list.innerHTML = ""; const p = document.createElement("p"); p.className = "note"; p.textContent = t; list.appendChild(p); };
+
+function safeSocial(u) {                       // 只接受 https 與白名單網域
+  try {
+    const x = new URL(u);
+    const h = x.hostname.replace(/^www\./, "");
+    if (x.protocol !== "https:" || !SOCIAL_HOSTS.some(d => h === d || h.endsWith("." + d))) return null;
+    return { href: x.href, label: h + (x.pathname !== "/" ? x.pathname : "") };
+  } catch (e) { return null; }
+}
+const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text) n.textContent = text; return n; };
+
+if (API_URL.includes("你的")) {
+  msg("尚未設定：請在 index.html 填入 FORM_URL 與 API_URL。");
+} else {
+  fetch(API_URL)
+    .then(r => r.json())
+    .then(items => {
+      if (!items.length) return msg("還沒有留言，成為第一位吧。");
+      list.innerHTML = "";
+      items.forEach(m => {
+        const box = el("article", "msg"), who = el("div", "who");
+        who.append(el("b", "", m.name), el("time", "", m.date ? new Date(m.date).toLocaleDateString("zh-TW") : ""));
+        box.append(who);
+        const s = m.social && safeSocial(m.social);
+        if (s) {
+          const a = el("a", "social", s.label);
+          a.href = s.href; a.target = "_blank"; a.rel = "noopener noreferrer nofollow ugc";
+          box.append(a, el("br"));
+        }
+        box.append(el("p", "", m.text));
+        const ids = (m.images || []).filter(id => /^[-\w]{25,}$/.test(id)).slice(0, 4);
+        if (ids.length) {
+          const g = el("div", "imgs" + (ids.length === 1 ? " one" : ""));
+          ids.forEach(id => {
+            const a = el("a"); a.href = "https://drive.google.com/file/d/" + id + "/view";
+            a.target = "_blank"; a.rel = "noopener noreferrer";
+            const img = el("img"); img.loading = "lazy"; img.alt = "留言附圖";
+            img.src = "https://drive.google.com/thumbnail?id=" + id + "&sz=w800";
+            a.append(img); g.append(a);
+          });
+          box.append(g);
+        }
+        list.append(box);
+      });
+    })
+    .catch(() => msg("暫時無法載入留言，請稍後再試。"));
+}
+</script>
+</body>
+</html>
